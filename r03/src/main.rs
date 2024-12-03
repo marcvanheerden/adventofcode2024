@@ -26,187 +26,220 @@ enum State {
     NotLooking,
 }
 
-fn part1(input: &str) -> i32 {
-    let mut state = State::LookingForMul;
-    let mut total: i32 = 0;
-    let mut product: i32 = 1;
-    let mut digits: Vec<char, MAX_DIGITS> = Vec::new();
-    let mut reset = false;
+struct StateMachine1 {
+    state: State,
+    total: i32,
+    product: i32,
+    digits: Vec<char, MAX_DIGITS>,
+    mul_chars: Vec<char, MUL_PATTERN_LEN>,
+}
 
-    let mut mul_chars: Vec<char, MUL_PATTERN_LEN> = Vec::from_slice(MUL_PATTERN).unwrap();
+impl StateMachine1 {
+    fn new() -> Self {
+        Self {
+            state: State::LookingForMul,
+            total: 0,
+            product: 1,
+            digits: Vec::new(),
+            mul_chars: Vec::from_slice(MUL_PATTERN).unwrap(),
+        }
+    }
+
+    fn reset(&mut self) {
+        if self.mul_chars.len() < MUL_PATTERN_LEN {
+            self.mul_chars = Vec::from_slice(MUL_PATTERN).unwrap();
+        }
+        self.digits = Vec::new();
+        self.product = 1;
+    }
+}
+
+fn part1(input: &str) -> i32 {
+    let mut sm = StateMachine1::new();
 
     for chr in input.chars() {
-        if reset {
-            mul_chars = Vec::from_slice(MUL_PATTERN).unwrap();
-            digits = Vec::new();
-            reset = false;
-            product = 1;
-        }
-
-        let next_char = mul_chars.last().unwrap();
-        match state {
+        let next_char = sm.mul_chars.last().unwrap();
+        match sm.state {
             State::LookingForMul => {
                 if *next_char == ' ' {
                     if chr.is_ascii_digit() {
-                        state = State::CollectingDigits;
-                        let _ = mul_chars.pop();
-                        digits = Vec::new();
-                        let _ = digits.push(chr);
+                        sm.state = State::CollectingDigits;
+                        let _ = sm.mul_chars.pop();
+                        sm.digits = Vec::new();
+                        let _ = sm.digits.push(chr);
                     } else {
-                        reset = true;
+                        sm.reset();
                     }
                     continue;
                 }
 
                 if *next_char == chr {
-                    match mul_chars.pop() {
+                    match sm.mul_chars.pop() {
                         Some(_) => continue,
                         None => defmt::unreachable!(),
                         // will be reached in CollectingDigits state
                     }
                 } else {
-                    reset = true;
+                    sm.reset();
                 }
             }
             State::CollectingDigits => {
                 if chr.is_ascii_digit() {
-                    match digits.push(chr) {
+                    match sm.digits.push(chr) {
                         Ok(_) => {}
                         Err(_) => {
-                            reset = true;
+                            sm.reset();
                         }
                     }
                 } else if chr == *next_char {
-                    let all_digits: String<MAX_DIGITS> = digits.iter().collect();
-                    product *= all_digits.parse::<i32>().unwrap();
-                    state = State::LookingForMul;
-                    let _ = mul_chars.pop();
+                    let all_digits: String<MAX_DIGITS> = sm.digits.iter().collect();
+                    sm.product *= all_digits.parse::<i32>().unwrap();
+                    sm.state = State::LookingForMul;
+                    let _ = sm.mul_chars.pop();
 
-                    if mul_chars.is_empty() {
-                        total += product;
-                        reset = true;
+                    if sm.mul_chars.is_empty() {
+                        sm.total += sm.product;
+                        sm.reset();
                     }
                     continue;
                 } else {
-                    state = State::LookingForMul;
-                    reset = true;
+                    sm.state = State::LookingForMul;
+                    sm.reset();
                 }
             }
             State::NotLooking => continue,
         }
     }
 
-    total
+    sm.total
 }
 
-fn part2(input: &str) -> i32 {
-    let mut state = State::LookingForMul;
-    let mut total: i32 = 0;
-    let mut product: i32 = 1;
-    let mut digits: Vec<char, MAX_DIGITS> = Vec::new();
-    let mut reset = false;
-    let mut reset_stop_start = false;
+struct StateMachine2 {
+    state: State,
+    total: i32,
+    product: i32,
+    digits: Vec<char, MAX_DIGITS>,
+    mul_chars: Vec<char, MUL_PATTERN_LEN>,
+    start_chars: Vec<char, START_PATTERN_LEN>,
+    end_chars: Vec<char, END_PATTERN_LEN>,
+}
 
-    let mut mul_chars: Vec<char, MUL_PATTERN_LEN> = Vec::from_slice(MUL_PATTERN).unwrap();
-    let mut start_chars: Vec<char, START_PATTERN_LEN> = Vec::from_slice(START_PATTERN).unwrap();
-    let mut end_chars: Vec<char, END_PATTERN_LEN> = Vec::from_slice(END_PATTERN).unwrap();
+impl StateMachine2 {
+    fn new() -> Self {
+        Self {
+            state: State::LookingForMul,
+            total: 0,
+            product: 1,
+            digits: Vec::new(),
+            mul_chars: Vec::from_slice(MUL_PATTERN).unwrap(),
+            start_chars: Vec::from_slice(START_PATTERN).unwrap(),
+            end_chars: Vec::from_slice(END_PATTERN).unwrap(),
+        }
+    }
+
+    fn reset(&mut self) {
+        if self.mul_chars.len() < MUL_PATTERN_LEN {
+            self.mul_chars = Vec::from_slice(MUL_PATTERN).unwrap();
+        }
+        self.digits = Vec::new();
+        self.product = 1;
+    }
+
+    fn reset_stop_start(&mut self) {
+        if self.start_chars.len() < START_PATTERN_LEN {
+            self.start_chars = Vec::from_slice(START_PATTERN).unwrap();
+        }
+        if self.end_chars.len() < END_PATTERN_LEN {
+            self.end_chars = Vec::from_slice(END_PATTERN).unwrap();
+        }
+    }
+}
+fn part2(input: &str) -> i32 {
+    let mut sm = StateMachine2::new();
 
     for chr in input.chars() {
-        if reset {
-            mul_chars = Vec::from_slice(MUL_PATTERN).unwrap();
-            digits = Vec::new();
-            product = 1;
-            reset = false;
-        }
+        let next_char = *sm.mul_chars.last().unwrap();
+        let next_start_char = sm.start_chars.last().unwrap();
+        let next_end_char = sm.end_chars.last().unwrap();
 
-        if reset_stop_start {
-            start_chars = Vec::from_slice(START_PATTERN).unwrap();
-            end_chars = Vec::from_slice(END_PATTERN).unwrap();
-            reset_stop_start = false;
-        }
-
-        let next_char = mul_chars.last().unwrap();
-        let next_start_char = start_chars.last().unwrap();
-        let next_end_char = end_chars.last().unwrap();
-
-        match state {
+        match sm.state {
             State::LookingForMul => {
                 if *next_end_char == chr {
-                    let _ = end_chars.pop();
+                    let _ = sm.end_chars.pop();
 
-                    if end_chars.is_empty() {
-                        state = State::NotLooking;
-                        reset_stop_start = true;
-                        product = 1;
+                    if sm.end_chars.is_empty() {
+                        sm.state = State::NotLooking;
+                        sm.reset_stop_start();
+                        sm.product = 1;
                         continue;
                     }
                 } else {
-                    reset_stop_start = true;
+                    sm.reset_stop_start();
                 }
 
-                if *next_char == ' ' {
+                if next_char == ' ' {
                     if chr.is_ascii_digit() {
-                        state = State::CollectingDigits;
-                        let _ = mul_chars.pop();
-                        digits = Vec::new();
-                        let _ = digits.push(chr);
+                        sm.state = State::CollectingDigits;
+                        let _ = sm.mul_chars.pop();
+                        sm.digits = Vec::new();
+                        let _ = sm.digits.push(chr);
                     } else {
-                        reset = true;
+                        sm.reset();
                     }
                     continue;
                 }
 
-                if *next_char == chr {
-                    match mul_chars.pop() {
+                if next_char == chr {
+                    match sm.mul_chars.pop() {
                         Some(_) => continue,
                         None => defmt::unreachable!(),
                         // will be reached in CollectingDigits state
                     }
                 } else {
-                    reset = true;
+                    sm.reset();
                 }
             }
             State::CollectingDigits => {
                 if chr.is_ascii_digit() {
-                    match digits.push(chr) {
+                    match sm.digits.push(chr) {
                         Ok(_) => {}
                         Err(_) => {
-                            reset = true;
+                            sm.reset();
                         }
                     }
-                } else if chr == *next_char {
-                    let all_digits: String<MAX_DIGITS> = digits.iter().collect();
-                    product *= all_digits.parse::<i32>().unwrap();
-                    state = State::LookingForMul;
-                    let _ = mul_chars.pop();
+                } else if chr == next_char {
+                    let all_digits: String<MAX_DIGITS> = sm.digits.iter().collect();
+                    sm.product *= all_digits.parse::<i32>().unwrap();
+                    sm.state = State::LookingForMul;
+                    let _ = sm.mul_chars.pop();
 
-                    if mul_chars.is_empty() {
-                        total += product;
-                        reset = true;
+                    if sm.mul_chars.is_empty() {
+                        sm.total += sm.product;
+                        sm.reset();
                     }
                     continue;
                 } else {
-                    state = State::LookingForMul;
-                    reset = true;
+                    sm.state = State::LookingForMul;
+                    sm.reset();
                 }
             }
             State::NotLooking => {
                 if *next_start_char == chr {
-                    let _ = start_chars.pop();
+                    let _ = sm.start_chars.pop();
 
-                    if start_chars.is_empty() {
-                        state = State::LookingForMul;
-                        reset_stop_start = true;
+                    if sm.start_chars.is_empty() {
+                        sm.state = State::LookingForMul;
+                        sm.reset_stop_start();
                         continue;
                     }
                 } else {
-                    reset_stop_start = true;
+                    sm.reset_stop_start();
                 }
             }
         }
     }
 
-    total
+    sm.total
 }
 
 #[entry]
