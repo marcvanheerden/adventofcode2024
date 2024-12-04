@@ -79,7 +79,7 @@ int part1(char input[]) {
         }
 
         if (neg_diag_clearance) {
-            // check if positive diagonal (\) word or reverse word ends here
+            // check if negative diagonal (\) word or reverse word ends here
             bool found = true;
             bool foundrev = true;
 
