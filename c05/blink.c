@@ -28,6 +28,7 @@ void fix_update(int *update, int size, const DepList deplists[]) {
     // that are in conflict and start checking again, only stop when the full
     // check passes
     for (;;) {
+        bool start_again = false;
         for (int idx = 1; idx < size; idx++) {
             for (int prec = 0; prec < idx; prec++) {
                 int prec_page = update[prec];
@@ -38,11 +39,17 @@ void fix_update(int *update, int size, const DepList deplists[]) {
                     update[idx] = update[prec];
                     update[prec] = temp;
                     // start checking again
-                    continue;
+                    start_again = true;
+                    break;
                 }
             }
+            if (start_again) {
+                break;
+            }
         }
-        break;
+        if (!start_again) {
+            break;
+        }
     }
 }
 

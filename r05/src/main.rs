@@ -72,12 +72,12 @@ fn check_updates(input: &str, mode: Mode) -> u32 {
 }
 
 fn fix(update: &mut Vec<u8, MAX_UPDATES>, deplist: &DepList) {
-    loop {
+    'outer: loop {
         for idx in 1..update.len() {
             for prev_idx in 0..idx {
                 if deplist[update[prev_idx] as usize].contains(&update[idx]) {
                     update.swap(idx, prev_idx);
-                    continue;
+                    continue 'outer;
                 }
             }
         }
