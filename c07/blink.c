@@ -51,7 +51,7 @@ int part1(char input[]) {
             input = endptr;
         }
 
-        if (calc_possible(target, terms[0], &terms, term_count, 1)) {
+        if (calc_possible(target, terms[0], terms, term_count, 1)) {
             total += target;
         }
 
