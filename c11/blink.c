@@ -77,14 +77,13 @@ unsigned long long part1(char input[], int blinks) {
                 unsigned long long front;
                 unsigned long long back;
                 split(node.val, digits, &front, &back);
-                // nodepool[node_idx].val = front;
 
                 int found_front = -1;
                 int found_back = -1;
+
                 // check if the value we need to add already exists
                 for (int idx2 = 0; idx2 < freenode; idx2++) {
                     if (nodepool[idx2].val == back) {
-                        // nodepool[idx2].count += nodepool[node_idx].count;
                         found_back = idx2;
                         break;
                     }
@@ -108,7 +107,6 @@ unsigned long long part1(char input[], int blinks) {
                     nodepool[freenode] = newnode;
                     freenode++;
                 }
-
             } else {
                 nodepool[node_idx].val *= 2024;
             }
