@@ -9,14 +9,31 @@ use rp_pico as bsp;
 
 use core::hint::black_box;
 use core::str;
+use fchashmap::FcHashMap;
 use heapless::Vec;
 
-const MAX_STONES: usize = 1000;
+const MAXMEMO: usize = 5000;
 
-#[derive(Clone)]
-struct Stone {
-    num: u64,
-    count: u64,
+fn stoney_gaze(num: u64, blinks_left: u8, memo: &mut FcHashMap<(u64, u8), u64, MAXMEMO>) -> u64 {
+    if blinks_left == 0 {
+        return 1;
+    }
+
+    if let Some(result) = memo.get(&(num, blinks_left)) {
+        return *result;
+    }
+
+    let result = if num == 0 {
+        stoney_gaze(1, blinks_left - 1, memo)
+    } else if let Some((front, back)) = split_digits(num) {
+        stoney_gaze(front, blinks_left - 1, memo) + stoney_gaze(back, blinks_left - 1, memo)
+    } else {
+        stoney_gaze(num * 2024, blinks_left - 1, memo)
+    };
+
+    let _ = memo.insert((num, blinks_left), result);
+
+    return result;
 }
 
 fn split_digits(num: u64) -> Option<(u64, u64)> {
@@ -38,60 +55,16 @@ fn split_digits(num: u64) -> Option<(u64, u64)> {
     None
 }
 
-fn part1(input: &str, blinks: u8) -> u64 {
-    let mut stones: Vec<Stone, MAX_STONES> = input
+fn blink_stones(input: &str, blinks: u8) -> u64 {
+    let mut memo = FcHashMap::new();
+
+    input
         .lines()
         .next()
         .unwrap()
         .split(' ')
-        .map(|n| Stone {
-            num: n.parse().unwrap(),
-            count: 1,
-        })
-        .collect();
-
-    for _blink in 0..blinks {
-        for idx in 0..stones.len() {
-            if stones[idx].num == 0 {
-                stones[idx].num = 1;
-                continue;
-            }
-
-            if let Some((front, back)) = split_digits(stones[idx].num) {
-                let mut found_front = None;
-                let mut found_back = None;
-
-                for idx2 in 0..stones.len() {
-                    if stones[idx2].num == front {
-                        found_front = Some(idx2);
-                        break;
-                    }
-                    if stones[idx2].num == back {
-                        found_back = Some(idx2);
-                        break;
-                    }
-                }
-
-                if let Some(idx2) = found_front {
-                    stones[idx2].count += stones[idx].count;
-                    stones[idx].num = back;
-                } else if let Some(idx2) = found_back {
-                    stones[idx2].count += stones[idx].count;
-                    stones[idx].num = front;
-                } else {
-                    stones[idx].num = front;
-                    let _ = stones.push(Stone {
-                        num: back,
-                        count: stones[idx].count,
-                    });
-                }
-            } else {
-                stones[idx].num *= 2024;
-            }
-        }
-    }
-
-    stones.into_iter().map(|s| s.count).sum()
+        .map(|n| stoney_gaze(n.parse().unwrap(), blinks, &mut memo))
+        .sum()
 }
 
 #[entry]
@@ -99,11 +72,13 @@ fn main() -> ! {
     info!("Program start");
 
     let inputs = include_str!("../example1.txt");
-    let ans1 = part1(inputs, 25);
+    let ans1 = blink_stones(inputs, 25);
+    let ans2 = blink_stones(inputs, 75);
     info!("calculation finished");
 
     // forcing the compiler to keeps these alive so I can view them
     // with the debugger
     black_box(ans1);
+    black_box(ans2);
     loop {}
 }
