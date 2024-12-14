@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 
 const ACOST: u64 = 3;
 const BCOST: u64 = 1;
-const LEARNING_RATIO: f64 = 100.0;
-const SEARCHES_PER_ROUND: usize = 100_000;
+const LEARNING_RATIO: f64 = 10.0;
+const SEARCHES_PER_ROUND: usize = 100;
 
 #[derive(Debug)]
 struct ClawMachine {
