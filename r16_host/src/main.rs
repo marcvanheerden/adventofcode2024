@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 const TURN_COST: u32 = 1000;
 const MOVE_COST: u32 = 1;
-const TOLERANCE: u8 = 10;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 enum Dir {
@@ -90,7 +89,6 @@ fn cheapest_path(maze: &Maze, reindeer: &Reindeer) -> u32 {
     let mut visited = HashMap::new();
 
     let mut best_score_so_far = u32::MAX;
-    let mut tolerance = TOLERANCE;
 
     while !tasks.is_empty() {
         for _ in 0..tasks.len() {
@@ -98,24 +96,21 @@ fn cheapest_path(maze: &Maze, reindeer: &Reindeer) -> u32 {
             if rd.pos == maze.end {
                 if rd.acc_cost < best_score_so_far {
                     best_score_so_far = rd.acc_cost;
-                    tolerance = TOLERANCE;
-                } else {
-                    tolerance -= 1;
-                }
-
-                if tolerance == 0 {
-                    return best_score_so_far;
                 }
                 continue;
             }
 
-            if let Some(score) = visited.get(&rd.pos) {
+            if rd.acc_cost >= best_score_so_far {
+                continue;
+            }
+
+            if let Some(score) = visited.get(&(rd.pos.0, rd.pos.1, rd.dir.clone())) {
                 if *score < rd.acc_cost {
                     continue;
                 }
             }
             visited
-                .entry(rd.pos)
+                .entry((rd.pos.0, rd.pos.1, rd.dir.clone()))
                 .and_modify(|score| *score = rd.acc_cost)
                 .or_insert(rd.acc_cost);
 
