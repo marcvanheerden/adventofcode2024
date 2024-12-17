@@ -91,6 +91,8 @@ fn cheapest_path(maze: &Maze, reindeer: &Reindeer) -> u32 {
     let mut best_score_so_far = u32::MAX;
 
     while !tasks.is_empty() {
+        dbg!(tasks.len());
+        dbg!(visited.len());
         for _ in 0..tasks.len() {
             let rd = tasks.pop_front().unwrap();
             if rd.pos == maze.end {
