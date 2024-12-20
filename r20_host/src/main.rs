@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 #[derive(Debug)]
 struct Maze {
@@ -12,18 +12,9 @@ struct Maze {
 struct Racer {
     pos: (u8, u8),
     budget: u8,
-    cheat_paths: Vec<Vec<(u8, u8)>>,
+    cheat_start: (u8, u8),
+    cheat_path_keys: HashSet<u32>,
 }
-
-impl Racer {
-    fn can_stack(&self, budget: u8) -> bool {
-        self.budget == 0
-            && !self.cheat_paths.is_empty()
-            && self.cheat_paths[0].len() == (budget + 1) as usize
-    }
-}
-
-const WALL_COST: u8 = 1;
 
 impl Maze {
     fn new(input: &str) -> Self {
@@ -62,7 +53,7 @@ impl Maze {
 
     fn cost(&self, pos: &(u8, u8)) -> u8 {
         if self.walls.contains(pos) {
-            WALL_COST
+            1
         } else {
             0
         }
@@ -74,7 +65,7 @@ impl Maze {
         if racer.pos.0 > 0 {
             let next_candidate = (racer.pos.0 - 1, racer.pos.1);
             let next_cost = self.cost(&next_candidate);
-            if racer.budget >= next_cost {
+            if next_cost == 0 || racer.budget > next_cost {
                 next.push((next_candidate, next_cost));
             }
         }
@@ -82,7 +73,7 @@ impl Maze {
         if racer.pos.1 > 0 {
             let next_candidate = (racer.pos.0, racer.pos.1 - 1);
             let next_cost = self.cost(&next_candidate);
-            if racer.budget >= next_cost {
+            if next_cost == 0 || racer.budget > next_cost {
                 next.push((next_candidate, next_cost));
             }
         }
@@ -90,7 +81,7 @@ impl Maze {
         if racer.pos.0 < self.bounds.0 {
             let next_candidate = (racer.pos.0 + 1, racer.pos.1);
             let next_cost = self.cost(&next_candidate);
-            if racer.budget >= next_cost {
+            if next_cost == 0 || racer.budget > next_cost {
                 next.push((next_candidate, next_cost));
             }
         }
@@ -98,7 +89,7 @@ impl Maze {
         if racer.pos.1 < self.bounds.1 {
             let next_candidate = (racer.pos.0, racer.pos.1 + 1);
             let next_cost = self.cost(&next_candidate);
-            if racer.budget >= next_cost {
+            if next_cost == 0 || racer.budget > next_cost {
                 next.push((next_candidate, next_cost));
             }
         }
@@ -111,7 +102,8 @@ impl Maze {
         queue.push_back(Racer {
             pos: self.start,
             budget,
-            cheat_paths: Vec::with_capacity(0),
+            cheat_start: (u8::MAX, u8::MAX),
+            cheat_path_keys: HashSet::new(),
         });
 
         // keep a history of cheatless traversals as the cutoff
@@ -138,7 +130,8 @@ impl Maze {
                     queue.push_back(Racer {
                         pos: next_pos,
                         budget: racer.budget - next_cost,
-                        cheat_paths: Vec::with_capacity(0),
+                        cheat_start: (u8::MAX, u8::MAX),
+                        cheat_path_keys: HashSet::new(),
                     });
                 }
             }
@@ -153,15 +146,18 @@ impl Maze {
         queue.push_back(Racer {
             pos: self.start,
             budget,
-            cheat_paths: Vec::new(),
+            cheat_start: (u8::MAX, u8::MAX),
+            cheat_path_keys: HashSet::new(),
         });
+
+        let mut steps = 0;
+        let mut paths: HashMap<(u8, u8, u8, u8), u32> = HashMap::new();
+        let mut path_count = 0;
+        let mut eligible_path_keys = HashSet::new();
 
         // keep a history of cheatless traversals as the cutoff
         // for a traversal to be allowed to continue
         let mut cheatless_history = HashSet::new();
-
-        let mut steps = 0;
-        let mut paths = HashSet::new();
 
         while !queue.is_empty() && steps <= max_steps {
             dbg!(steps);
@@ -169,14 +165,9 @@ impl Maze {
             while !queue.is_empty() {
                 let racer = queue.pop_front().unwrap();
 
+                // terminal condition
                 if racer.pos == self.end {
-                    paths.extend(racer.cheat_paths);
-                    continue;
-                }
-
-                let manhattan_dist_from_end =
-                    self.end.0.abs_diff(racer.pos.0) + self.end.1.abs_diff(racer.pos.1);
-                if manhattan_dist_from_end as u32 > (max_steps - steps) {
+                    eligible_path_keys.extend(racer.cheat_path_keys);
                     continue;
                 }
 
@@ -187,38 +178,89 @@ impl Maze {
                 }
 
                 for (next_pos, next_cost) in self.next_pos(&racer) {
-                    let mut next_cheat_paths = racer.cheat_paths.clone();
+                    // hasn't cheated yet
+                    if racer.budget == budget {
+                        let next_cheat_start = if next_cost > 0 {
+                            racer.pos
+                        } else {
+                            (u8::MAX, u8::MAX)
+                        };
 
-                    if !next_cheat_paths.is_empty()
-                        && (next_cheat_paths[0].len() < (budget + 1) as usize)
-                        && (next_cost > 0 || !next_cheat_paths[0].is_empty())
-                    {
-                        next_cheat_paths[0].push(next_pos);
-                    } else if next_cost > 0 {
-                        next_cheat_paths.push(Vec::with_capacity(2));
-                        next_cheat_paths[0].push(next_pos);
+                        let next_racer = Racer {
+                            pos: next_pos,
+                            budget: racer.budget - next_cost,
+                            cheat_start: next_cheat_start,
+                            cheat_path_keys: HashSet::new(),
+                        };
+
+                        if !next_queue.contains(&next_racer) {
+                            next_queue.push(next_racer);
+                        }
+                        continue;
+                    }
+
+                    // finished cheating
+                    if racer.budget == 1 || (next_cost == 0 && racer.budget > 1) {
+                        let mut next_cheat_path_keys = HashSet::new();
+
+                        let key = (
+                            racer.cheat_start.0,
+                            racer.cheat_start.1,
+                            next_pos.0,
+                            next_pos.1,
+                        );
+                        if let Some(path_id) = paths.get(&key) {
+                            next_cheat_path_keys.insert(*path_id);
+                        } else {
+                            path_count += 1;
+                            paths.insert(key, path_count);
+                            next_cheat_path_keys.insert(path_count);
+                        }
+
+                        let next_racer = Racer {
+                            pos: next_pos,
+                            budget: 0,
+                            cheat_start: (u8::MAX, u8::MAX),
+                            cheat_path_keys: next_cheat_path_keys,
+                        };
+                        if !next_queue.contains(&next_racer) {
+                            next_queue.push(next_racer);
+                        }
+                        continue;
+                    }
+
+                    // in the middle of cheating
+                    if racer.budget > 1 && next_cost > 0 {
+                        let next_racer = Racer {
+                            pos: next_pos,
+                            budget: racer.budget - 1,
+                            cheat_start: racer.cheat_start,
+                            cheat_path_keys: HashSet::new(),
+                        };
+                        if !next_queue.contains(&next_racer) {
+                            next_queue.push(next_racer);
+                        }
+
+                        continue;
                     }
 
                     let next_racer = Racer {
                         pos: next_pos,
-                        budget: racer.budget - next_cost,
-                        cheat_paths: next_cheat_paths,
+                        budget: 0,
+                        cheat_start: (u8::MAX, u8::MAX),
+                        cheat_path_keys: racer.cheat_path_keys.clone(),
                     };
 
+                    // try find an existing task in the queue to combine with
+                    // instead of creating a new task
                     let mut found = false;
-
-                    // stack similar tasks by combining their cheat paths
-                    if next_racer.can_stack(budget) {
-                        for racer_mut in next_queue.iter_mut() {
-                            if racer_mut.pos == next_racer.pos && racer_mut.can_stack(budget) {
-                                found = true;
-                                for move_racer in next_racer.cheat_paths.iter() {
-                                    if !racer_mut.cheat_paths.contains(move_racer) {
-                                        racer_mut.cheat_paths.push(move_racer.clone());
-                                    }
-                                }
-                                break;
-                            }
+                    for racer_mut in next_queue.iter_mut() {
+                        if racer_mut.budget == 0 && racer_mut.pos == next_racer.pos {
+                            found = true;
+                            racer_mut
+                                .cheat_path_keys
+                                .extend(next_racer.cheat_path_keys.clone());
+                            break;
                         }
                     }
 
@@ -231,14 +273,15 @@ impl Maze {
             steps += 1;
         }
 
-        paths.len() as u32
+        eligible_path_keys.len() as u32
     }
 }
 
 fn main() {
-    let input = include_str!("../input.txt");
+    let input = include_str!("../example1.txt");
     let maze = Maze::new(input);
     let fastest_no_cheat = maze.fastest_traversal(0);
     dbg!(fastest_no_cheat);
-    dbg!(maze.cheat_paths(1, fastest_no_cheat.saturating_sub(100)));
+    dbg!(maze.cheat_paths(2, fastest_no_cheat.saturating_sub(2)));
+    //dbg!(maze.cheat_paths(5, fastest_no_cheat.saturating_sub(100)));
 }
