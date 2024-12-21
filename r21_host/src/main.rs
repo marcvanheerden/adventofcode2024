@@ -1,5 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
+type KeySequence = Vec<u8>;
+
 const NUMPAD: &str = "789
 456
 123
@@ -72,8 +74,7 @@ impl InputDevice {
         output
     }
 
-    fn paths(&self, start: (u8, u8), stop: (u8, u8)) -> Vec<Vec<u8>> {
-        dbg!(stop);
+    fn paths(&self, start: (u8, u8), stop: (u8, u8)) -> Vec<KeySequence> {
         let mut queue = VecDeque::new();
         queue.push_front(vec![(start.0, start.1, b'x')]);
 
@@ -102,7 +103,7 @@ impl InputDevice {
         paths
     }
 
-    fn ways_to_move(&mut self, from_key: u8, to_key: u8) -> Vec<Vec<u8>> {
+    fn ways_to_move(&mut self, from_key: u8, to_key: u8) -> Vec<KeySequence> {
         if let Some(output) = self.cache.get(&(from_key, to_key)) {
             return output.to_vec();
         }
@@ -120,19 +121,16 @@ impl InputDevice {
     }
 }
 
-fn part1(passcode: &str) -> u32 {
-    let mut numpad = InputDevice::new(NUMPAD);
-    let dirpad = InputDevice::new(DIRPAD);
+fn meta_step(device: &mut InputDevice, sequence: KeySequence) -> Vec<KeySequence> {
+    let mut full_sequence = vec![b'A'];
+    full_sequence.extend(sequence);
 
-    let mut initial_sequence = vec![b'A'];
-    initial_sequence.extend(passcode.chars().map(|c| c as u8).collect::<Vec<_>>());
-
-    let sequence_parts: Vec<_> = initial_sequence
+    let sequence_parts: Vec<_> = full_sequence
         .windows(2)
-        .map(|w| numpad.ways_to_move(w[0], w[1]))
+        .map(|w| device.ways_to_move(w[0], w[1]))
         .collect();
 
-    let mut sequences: Vec<Vec<u8>> = Vec::new();
+    let mut sequences: Vec<KeySequence> = Vec::new();
     for part in sequence_parts.into_iter() {
         if sequences.is_empty() {
             sequences = part;
@@ -153,14 +151,52 @@ fn part1(passcode: &str) -> u32 {
             .collect();
     }
 
-    dbg!(sequences);
-    1
+    sequences
+}
+
+fn part1(passcode: &str) -> usize {
+    let mut numpad = InputDevice::new(NUMPAD);
+    let mut dirpad = InputDevice::new(DIRPAD);
+
+    let initial_sequence: Vec<_> = passcode.chars().map(|c| c as u8).collect();
+
+    let mut sequences = meta_step(&mut numpad, initial_sequence);
+
+    sequences = sequences
+        .into_iter()
+        .flat_map(|s| meta_step(&mut dirpad, s))
+        .collect();
+
+    sequences = sequences
+        .into_iter()
+        .flat_map(|s| meta_step(&mut dirpad, s))
+        .collect();
+
+    let min_key_seq = sequences.into_iter().map(|s| s.len()).min().unwrap();
+    let number_parts: usize = passcode
+        .chars()
+        .filter(|c| c.is_ascii_digit())
+        .collect::<String>()
+        .parse()
+        .unwrap();
+
+    min_key_seq * number_parts
+}
+
+fn easy_display(ks: &[KeySequence]) {
+    println!("---------------------------------------------");
+    for seq in ks.iter() {
+        for key in seq.iter() {
+            print!("{}", *key as char);
+        }
+        println!();
+    }
+    println!("---------------------------------------------");
 }
 
 fn main() {
-    let input = include_str!("../example1.txt");
-    let input = "029A";
-    part1(input);
+    let input = include_str!("../input.txt");
+    dbg!(input.lines().map(part1).sum::<usize>());
 }
 
 // Assumptions: adding additional moves will never be more efficient

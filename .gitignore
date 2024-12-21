@@ -1,0 +1,6 @@
+*.txt
+*target*
+*.lock
+*.svg
+*.out
+*inputs.h
