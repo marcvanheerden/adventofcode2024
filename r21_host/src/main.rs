@@ -121,6 +121,32 @@ impl InputDevice {
     }
 }
 
+fn fucksake(
+    from: u8,
+    to: u8,
+    depth: u8,
+    max_depth: u8,
+    numpad: &mut InputDevice,
+    dirpad: &mut InputDevice,
+) -> usize {
+    1
+}
+
+fn orchestrate(input: &str) -> usize {
+    let input2: Vec<_> = input.chars().map(|c| c as u8).collect();
+    let mut numpad = InputDevice::new(NUMPAD);
+    let mut dirpad = InputDevice::new(DIRPAD);
+
+}
+
+fn main() {
+    //let input = include_str!("../input.txt");
+    let input = "029A";
+    dbg!(orchestrate(input));
+}
+
+// Assumptions: adding additional moves will never be more efficient
+
 fn meta_step(device: &mut InputDevice, sequence: KeySequence) -> Vec<KeySequence> {
     let mut full_sequence = vec![b'A'];
     full_sequence.extend(sequence);
@@ -193,10 +219,3 @@ fn easy_display(ks: &[KeySequence]) {
     }
     println!("---------------------------------------------");
 }
-
-fn main() {
-    let input = include_str!("../input.txt");
-    dbg!(input.lines().map(part1).sum::<usize>());
-}
-
-// Assumptions: adding additional moves will never be more efficient
