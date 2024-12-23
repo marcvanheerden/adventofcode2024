@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::fmt;
 
 const NUMPAD: &str = "789
 456
@@ -74,13 +73,13 @@ impl InputDevice {
     }
 
     fn paths(&self, start: (u8, u8), stop: (u8, u8), depth: u8) -> Vec<Vec<KeyTransition>> {
-        //if start == stop {
-        //    return vec![vec![KeyTransition {
-        //        from: b'A',
-        //        to: b'A',
-        //        depth: depth + 1,
-        //    }]];
-        //}
+        if start == stop {
+            return vec![vec![KeyTransition {
+                from: b'A',
+                to: b'A',
+                depth: depth + 1,
+            }]];
+        }
 
         let mut queue = VecDeque::new();
         queue.push_front(vec![(start.0, start.1, b'x')]);
@@ -92,8 +91,13 @@ impl InputDevice {
                 let task_current = task.last().unwrap();
 
                 if (task_current.0, task_current.1) == stop {
-                    let mut moves: Vec<_> =
-                        task.into_iter().skip(1).map(|(_y, _x, dir)| dir).collect();
+                    let mut moves = vec![b'A'];
+                    moves.extend(
+                        task.into_iter()
+                            .skip(1)
+                            .map(|(_y, _x, dir)| dir)
+                            .collect::<Vec<_>>(),
+                    );
                     moves.push(b'A');
                     let moves = moves
                         .windows(2)
@@ -135,21 +139,11 @@ impl InputDevice {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct KeyTransition {
     from: u8,
     to: u8,
     depth: u8,
-}
-
-impl fmt::Debug for KeyTransition {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("")
-            .field(&(self.from as char))
-            .field(&(self.to as char))
-            .field(&self.depth)
-            .finish()
-    }
 }
 
 fn propagate_presses(
@@ -192,26 +186,11 @@ fn min_length(
         return 1;
     }
 
-    let mut wtm = if kt.depth == 0 {
+    let wtm = if kt.depth == 0 {
         numpad.ways_to_move(kt.from, kt.to, kt.depth)
     } else {
         dirpad.ways_to_move(kt.from, kt.to, kt.depth)
     };
-
-    wtm.iter_mut().for_each(|v| {
-        let to = if let Some(fkt) = v.first() {
-            fkt.from
-        } else {
-            b'A'
-        };
-        let mut newv = vec![KeyTransition {
-            from: b'A',
-            to,
-            depth: kt.depth + 1,
-        }];
-        newv.extend(v.clone());
-        *v = newv;
-    });
 
     let output = wtm
         .iter()
