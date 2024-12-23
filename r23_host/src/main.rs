@@ -80,7 +80,6 @@ fn part2(graph: &Graph) -> String {
     let mut immediate_networks: Vec<Vec<&Node>> = Vec::new();
 
     for node1 in nodes.iter() {
-        dbg!(node1);
         for node2 in nodes.iter() {
             if node2 <= node1 || !graph.edges.get(node1).unwrap().contains(node2) {
                 continue;
