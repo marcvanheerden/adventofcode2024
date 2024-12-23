@@ -152,18 +152,7 @@ impl fmt::Debug for KeyTransition {
     }
 }
 
-fn easy_display(ks: &[Vec<KeyTransition>]) {
-    println!("---------------------------------------------");
-    for seq in ks.iter() {
-        for key in seq.iter() {
-            print!("{}{}x{} ", key.from as char, key.to as char, key.depth);
-        }
-        println!();
-    }
-    println!("---------------------------------------------");
-}
-
-fn propagate(
+fn propagate_presses(
     input: &str,
     max_depth: u8,
     numpad: &mut InputDevice,
@@ -184,11 +173,11 @@ fn propagate(
     let mut cache = HashMap::new();
 
     kts.into_iter()
-        .map(|kt| plummit(kt, max_depth, numpad, dirpad, &mut cache))
+        .map(|kt| min_length(kt, max_depth, numpad, dirpad, &mut cache))
         .sum()
 }
 
-fn plummit(
+fn min_length(
     kt: KeyTransition,
     max_depth: u8,
     numpad: &mut InputDevice,
@@ -228,7 +217,7 @@ fn plummit(
         .iter()
         .map(|vkt| {
             vkt.iter()
-                .map(|kt| plummit(kt.clone(), max_depth, numpad, dirpad, cache))
+                .map(|kt| min_length(kt.clone(), max_depth, numpad, dirpad, cache))
                 .sum::<usize>()
         })
         .min()
@@ -248,7 +237,7 @@ fn main() {
         .lines()
         .map(|s| {
             let number_part: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
-            let min_length = propagate(s, 2, &mut numpad, &mut dirpad);
+            let min_length = propagate_presses(s, 2, &mut numpad, &mut dirpad);
             min_length * number_part.parse::<usize>().unwrap()
         })
         .sum::<usize>();
@@ -259,7 +248,7 @@ fn main() {
         .lines()
         .map(|s| {
             let number_part: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
-            let min_length = propagate(s, 25, &mut numpad, &mut dirpad);
+            let min_length = propagate_presses(s, 25, &mut numpad, &mut dirpad);
             min_length * number_part.parse::<usize>().unwrap()
         })
         .sum::<usize>();
