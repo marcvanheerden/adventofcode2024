@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::fmt;
 
 const NUMPAD: &str = "789
 456
@@ -11,7 +12,7 @@ const DIRPAD: &str = "X^A
 #[derive(Debug)]
 struct InputDevice {
     layout: Vec<(u8, u8, u8)>,
-    cache: HashMap<(u8, u8), Vec<KeySequence>>,
+    cache: HashMap<(u8, u8, u8), Vec<Vec<KeyTransition>>>,
 }
 
 impl InputDevice {
@@ -72,11 +73,19 @@ impl InputDevice {
         output
     }
 
-    fn paths(&self, start: (u8, u8), stop: (u8, u8), count: usize) -> Vec<KeySequence> {
+    fn paths(&self, start: (u8, u8), stop: (u8, u8), depth: u8) -> Vec<Vec<KeyTransition>> {
+        //if start == stop {
+        //    return vec![vec![KeyTransition {
+        //        from: b'A',
+        //        to: b'A',
+        //        depth: depth + 1,
+        //    }]];
+        //}
+
         let mut queue = VecDeque::new();
         queue.push_front(vec![(start.0, start.1, b'x')]);
 
-        let mut paths: Vec<KeySequence> = Vec::new();
+        let mut paths: Vec<Vec<KeyTransition>> = Vec::new();
         while !queue.is_empty() && paths.is_empty() {
             for _ in 0..queue.len() {
                 let task = queue.pop_front().unwrap();
@@ -91,10 +100,10 @@ impl InputDevice {
                         .map(|w| KeyTransition {
                             from: w[0],
                             to: w[1],
-                            count,
+                            depth: depth + 1,
                         })
                         .collect();
-                    paths.push(KeySequence { trs: moves });
+                    paths.push(moves);
                     continue;
                 }
 
@@ -109,11 +118,10 @@ impl InputDevice {
         paths
     }
 
-    fn ways_to_move(&mut self, from_key: u8, to_key: u8, count: usize) -> Vec<KeySequence> {
-        if let Some(output) = self.cache.get(&(from_key, to_key)) {
+    fn ways_to_move(&mut self, from_key: u8, to_key: u8, depth: u8) -> Vec<Vec<KeyTransition>> {
+        if let Some(output) = self.cache.get(&(from_key, to_key, depth)) {
             return output.clone();
         }
-
         let from_loc = self
             .find(from_key)
             .expect("looking for a key that doesn't exist");
@@ -121,166 +129,141 @@ impl InputDevice {
             .find(to_key)
             .expect("looking for a key that doesn't exist");
 
-        let ways = self.paths(from_loc, to_loc, count);
-        self.cache.insert((from_key, to_key), ways.clone());
+        let ways = self.paths(from_loc, to_loc, depth);
+        self.cache.insert((from_key, to_key, depth), ways.clone());
         ways
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 struct KeyTransition {
     from: u8,
     to: u8,
-    count: usize,
+    depth: u8,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct KeySequence {
-    trs: Vec<KeyTransition>,
-}
-
-impl KeySequence {
-    fn compress(&mut self) {
-        // combine same key transitions and sum their counts
-        // as long as the first and the last are unmoved then its fine
-        'outer: loop {
-            for early_idx in 0..(self.trs.len() - 1) {
-                for later_idx in (early_idx + 1)..(self.trs.len() - 1) {
-                    if self.trs[early_idx].from == self.trs[later_idx].from
-                        && self.trs[early_idx].to == self.trs[later_idx].to
-                    {
-                        self.trs[early_idx].count += self.trs[later_idx].count;
-                        self.trs.remove(later_idx);
-                        continue 'outer;
-                    }
-                }
-            }
-            break;
-        }
-    }
-
-    fn total(&self) -> usize {
-        self.trs.iter().map(|kt| kt.count).sum::<usize>() + 1
+impl fmt::Debug for KeyTransition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("")
+            .field(&(self.from as char))
+            .field(&(self.to as char))
+            .field(&self.depth)
+            .finish()
     }
 }
 
-fn meta_step(device: &mut InputDevice, sequence: KeySequence) -> Vec<KeySequence> {
-    // add the starting transition from A to first key press
-    let starting_key = sequence.trs.first().unwrap().from;
-    let mut full_sequence = KeySequence {
-        trs: vec![KeyTransition {
-            from: b'A',
-            to: starting_key,
-            count: 1,
-        }],
-    };
-    full_sequence.trs.extend(sequence.trs);
-
-    // get the different key combinations for each transition
-    let sequence_parts: Vec<Vec<KeySequence>> = full_sequence
-        .trs
-        .into_iter()
-        .map(|tr| device.ways_to_move(tr.from, tr.to, tr.count))
-        .collect();
-
-    // combine all the key combinations for the transitions
-    let mut sequences: Vec<KeySequence> = Vec::new();
-    for part in sequence_parts.into_iter() {
-        if sequences.is_empty() {
-            sequences = part;
-            continue;
-        }
-
-        sequences = sequences
-            .into_iter()
-            .flat_map(|s| {
-                part.iter()
-                    .map(|p| {
-                        let mut s_clone = s.clone();
-                        let mut next_to = b'A';
-
-                        if let Some(next_trs) = p.trs.first() {
-                            next_to = next_trs.from;
-                        }
-
-                        let joiner = KeyTransition {
-                            from: s.trs.last().unwrap().to,
-                            to: next_to,
-                            count: 1,
-                        };
-                        s_clone.trs.push(joiner);
-                        s_clone.trs.extend(p.trs.clone());
-                        s_clone
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-    }
-
-    sequences
-}
-
-fn propagate(passcode: &str, robots: usize) -> usize {
-    let mut numpad = InputDevice::new(NUMPAD);
-    let mut dirpad = InputDevice::new(DIRPAD);
-
-    let initial_sequence: Vec<_> = passcode.chars().map(|c| c as u8).collect();
-    let initial_sequence = initial_sequence
-        .windows(2)
-        .map(|w| KeyTransition {
-            from: w[0],
-            to: w[1],
-            count: 1,
-        })
-        .collect();
-    let initial_sequence = KeySequence {
-        trs: initial_sequence,
-    };
-
-    let mut sequences = meta_step(&mut numpad, initial_sequence);
-
-    easy_display(&sequences);
-    for _ in 0..robots {
-        sequences = sequences
-            .into_iter()
-            .flat_map(|s| meta_step(&mut dirpad, s))
-            .collect();
-        sequences.iter_mut().for_each(|s| s.compress());
-        easy_display(&sequences);
-    }
-
-    let min_key_seq = sequences.into_iter().map(|s| s.total()).min().unwrap();
-    let number_parts: usize = passcode
-        .chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect::<String>()
-        .parse()
-        .unwrap();
-
-    min_key_seq * number_parts
-}
-
-fn easy_display(ks: &[KeySequence]) {
+fn easy_display(ks: &[Vec<KeyTransition>]) {
     println!("---------------------------------------------");
     for seq in ks.iter() {
-        for key in seq.trs.iter() {
-            print!("{}{}x{} ", key.from as char, key.to as char, key.count);
+        for key in seq.iter() {
+            print!("{}{}x{} ", key.from as char, key.to as char, key.depth);
         }
         println!();
     }
     println!("---------------------------------------------");
 }
 
-fn main() {
-    let input = include_str!("../example1.txt");
-    dbg!(input
-        .lines()
-        .take(1)
-        .map(|s| propagate(s, 0))
-        .sum::<usize>());
+fn propagate(
+    input: &str,
+    max_depth: u8,
+    numpad: &mut InputDevice,
+    dirpad: &mut InputDevice,
+) -> usize {
+    let chars: Vec<_> = input.chars().map(|c| c as u8).collect();
+    let mut all_chars = vec![b'A'];
+    all_chars.extend(chars);
+    let kts: Vec<_> = all_chars
+        .windows(2)
+        .map(|w| KeyTransition {
+            from: w[0],
+            to: w[1],
+            depth: 0,
+        })
+        .collect();
+
+    let mut cache = HashMap::new();
+
+    kts.into_iter()
+        .map(|kt| plummit(kt, max_depth, numpad, dirpad, &mut cache))
+        .sum()
 }
 
-// Assumptions: adding additional moves will never be more efficient
-// TODOs:
-// Order all the middle trs and then deduplicate
-// Debug thist thing
+fn plummit(
+    kt: KeyTransition,
+    max_depth: u8,
+    numpad: &mut InputDevice,
+    dirpad: &mut InputDevice,
+    cache: &mut HashMap<KeyTransition, usize>,
+) -> usize {
+    if let Some(output) = cache.get(&kt) {
+        return *output;
+    }
+
+    if kt.depth > max_depth {
+        return 1;
+    }
+
+    let mut wtm = if kt.depth == 0 {
+        numpad.ways_to_move(kt.from, kt.to, kt.depth)
+    } else {
+        dirpad.ways_to_move(kt.from, kt.to, kt.depth)
+    };
+
+    wtm.iter_mut().for_each(|v| {
+        let to = if let Some(fkt) = v.first() {
+            fkt.from
+        } else {
+            b'A'
+        };
+        let mut newv = vec![KeyTransition {
+            from: b'A',
+            to,
+            depth: kt.depth + 1,
+        }];
+        newv.extend(v.clone());
+        *v = newv;
+    });
+
+    let output = wtm
+        .iter()
+        .map(|vkt| {
+            vkt.iter()
+                .map(|kt| plummit(kt.clone(), max_depth, numpad, dirpad, cache))
+                .sum::<usize>()
+        })
+        .min()
+        .unwrap();
+
+    cache.insert(kt, output);
+
+    output
+}
+
+fn main() {
+    let mut numpad = InputDevice::new(NUMPAD);
+    let mut dirpad = InputDevice::new(DIRPAD);
+
+    let input = include_str!("../input.txt");
+    let part1 = input
+        .lines()
+        .map(|s| {
+            let number_part: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+            let min_length = propagate(s, 2, &mut numpad, &mut dirpad);
+            min_length * number_part.parse::<usize>().unwrap()
+        })
+        .sum::<usize>();
+
+    dbg!(part1);
+
+    let part2 = input
+        .lines()
+        .map(|s| {
+            let number_part: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+            let min_length = propagate(s, 25, &mut numpad, &mut dirpad);
+            min_length * number_part.parse::<usize>().unwrap()
+        })
+        .sum::<usize>();
+
+    dbg!(part2);
+}
+
